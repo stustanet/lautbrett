@@ -13,17 +13,17 @@ PATH = "static"
 last = None
 subscriptions = []
 
-@app.route('/set/<id>')
-def set(id):
+
+@app.route('/set/<sound_id>')
+def set(sound_id):
     """
     set the file id to play and is called by bernd
     it will send a message to all subscribed queues
     """
-    last = id
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
-            sub.put(id)
+            sub.put(sound_id)
     gevent.spawn(notify)
 
     return 'thx', 200
@@ -43,11 +43,12 @@ def wait_for_events():
 
         try:
             while True:
-                id = q.get()
-                yield 'data: {}/{}\n\n'.format( PATH, find_file(id))
+                sound_id = q.get()
+                yield 'data: {}\n\n'.format(os.path.join(PATH, find_file(sound_id)))
         except GeneratorExit:
             subscriptions.remove(q)
     return Response(gen(), mimetype="text/event-stream")
+
 
 @app.route('/audio/<path:path>')
 def send_audio(path):
@@ -55,16 +56,16 @@ def send_audio(path):
     static file handler to serve the audio data
     """
     print(path)
-    return send_from_directory('audio', path)
+    return send_from_directory(PATH, path)
 
 
-def find_file(id):
+def find_file(sound_id):
     """
     find the file in PATH based on the id
     """
     for f in os.listdir(PATH):
-        f = f.strip("\"").strip("\'")
-        if f.startswith("{} ".format(id)):
+        f = f.strip("\"\'")
+        if f.startswith("{} ".format(sound_id)):
             return f
 
     return abort(404)
@@ -79,8 +80,7 @@ def hello(name=None):
 
 
 if __name__ == '__main__':
-#    app.run(host='0.0.0.0', debug=True)
-    app.debug=True
-    app.host='0.0.0.0'
+    app.debug = True
+    app.host = '0.0.0.0'
     server = WSGIServer(("", 5000), app)
     server.serve_forever()
