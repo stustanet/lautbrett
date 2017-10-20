@@ -62,9 +62,9 @@ def find_file(id):
     """
     find the file in PATH based on the id
     """
-    for f in os.listdir('audio'):
+    for f in os.listdir(PATH):
         f = f.strip("\"").strip("\'")
-        if f.startswith(id):
+        if f.startswith("{} ".format(id)):
             return f
 
     return abort(404)
