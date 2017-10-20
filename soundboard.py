@@ -5,14 +5,18 @@ import os
 import gevent
 from gevent.queue import Queue
 from gevent.wsgi import WSGIServer
+import time
 
 app = Flask(__name__)
-
 PATH = "static"
+DEBUG = True
+min_delay_s = 0.25;
 
-last = None
+
+
+
 subscriptions = []
-
+last_call = time.time();
 
 @app.route('/set/<sound_id>')
 def set(sound_id):
@@ -20,6 +24,18 @@ def set(sound_id):
     set the file id to play and is called by bernd
     it will send a message to all subscribed queues
     """
+    global last_call
+    global min_delay_s
+    now = time.time()
+
+    print(now)
+    print(now-last_call)
+    print(min_delay_s)
+    if (now - last_call) < min_delay_s:
+        print('ratelimited')
+        return 'keep cool', 200
+    last_call = now
+
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
@@ -37,6 +53,7 @@ def wait_for_events():
         and returns the current file path to play and opens a channel to
         continue providing updates
         """
+
         q = Queue()
         global subscriptions
         subscriptions.append(q)
@@ -73,17 +90,34 @@ def find_file(sound_id):
 
     return abort(404)
 
+@app.route('/soundboard')
+def sound ():
+    files = []
+    for f in os.listdir(PATH):
+        f = f.strip("\"\'")
+        f = f.split(' ', 1)
+        files.append({'name':f[1], 'id':f[0]})
+    return render_template('soundboard.html', buttons=files)
+
 
 @app.route('/')
-def hello(name=None):
+def hello():
     """
     serve the default page, which is loaded by the widget
     """
-    return render_template('soundboard.html', name=name)
+
+    return render_template('play.html')
 
 
 if __name__ == '__main__':
-    app.debug = True
-    app.host = '0.0.0.0'
-    server = WSGIServer(("", 5000), app)
-    server.serve_forever()
+    if DEBUG:
+        app.debug = True
+        app.host = '0.0.0.0'
+        server = WSGIServer(("", 5000), app)
+        server.serve_forever()
+    else:
+        app.debug = False
+        app.host = '127.0.0.1'
+        server = WSGIServer(("", 8081), app)
+        server.serve_forever()
+
