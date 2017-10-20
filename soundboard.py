@@ -55,7 +55,6 @@ def send_audio(path):
     """
     static file handler to serve the audio data
     """
-    print(path)
     return send_from_directory(PATH, path)
 
 
@@ -63,6 +62,10 @@ def find_file(sound_id):
     """
     find the file in PATH based on the id
     """
+
+    if len(sound_id) == 1:
+        sound_id = "0{}".format(sound_id)
+
     for f in os.listdir(PATH):
         f = f.strip("\"\'")
         if f.startswith("{} ".format(sound_id)):
