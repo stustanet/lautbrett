@@ -5,12 +5,18 @@ import os
 import gevent
 from gevent.queue import Queue
 from gevent.wsgi import WSGIServer
+import time
 
 app = Flask(__name__)
 PATH = "static"
 DEBUG = True
+min_delay_s = 0.25;
+
+
+
 
 subscriptions = []
+last_call = time.time();
 
 @app.route('/set/<sound_id>')
 def set(sound_id):
@@ -18,6 +24,18 @@ def set(sound_id):
     set the file id to play and is called by bernd
     it will send a message to all subscribed queues
     """
+    global last_call
+    global min_delay_s
+    now = time.time()
+
+    print(now)
+    print(now-last_call)
+    print(min_delay_s)
+    if (now - last_call) < min_delay_s:
+        print('ratelimited')
+        return 'keep cool', 200
+    last_call = now
+
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
@@ -35,6 +53,7 @@ def wait_for_events():
         and returns the current file path to play and opens a channel to
         continue providing updates
         """
+
         q = Queue()
         global subscriptions
         subscriptions.append(q)
