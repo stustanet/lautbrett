@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+    <body>
+
+        <h1>SSN Audio board</h1>
+        <div id="result"></div>
+
+        <script>
+         if(typeof(EventSource) !== "undefined") {
+             var source = new EventSource("/gen/");
+             source.onmessage = function(event) {
+                 document.getElementById("result").innerHTML += event.data + "<br>";
+                 if (event.data != "kp") {
+                     var audio = new Audio(event.data);
+                     audio.play();
+                 };
+             };
+             source.onerror = function(e) {
+                 console.log(e);
+             };
+         } else {
+             document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+         }
+        </script>
+
+    </body>
+</html>
+
