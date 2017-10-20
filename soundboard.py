@@ -7,12 +7,10 @@ from gevent.queue import Queue
 from gevent.wsgi import WSGIServer
 
 app = Flask(__name__)
-
 PATH = "static"
+DEBUG = True
 
-last = None
 subscriptions = []
-
 
 @app.route('/set/<sound_id>')
 def set(sound_id):
@@ -70,17 +68,34 @@ def find_file(sound_id):
 
     return abort(404)
 
+@app.route('/soundboard')
+def sound ():
+    files = []
+    for f in os.listdir(PATH):
+        f = f.strip("\"\'")
+        f = f.split(' ', 1)
+        files.append({'name':f[1], 'id':f[0]})
+    return render_template('soundboard.html', buttons=files)
+
 
 @app.route('/')
-def hello(name=None):
+def hello():
     """
     serve the default page, which is loaded by the widget
     """
-    return render_template('soundboard.html', name=name)
+
+    return render_template('play.html')
 
 
 if __name__ == '__main__':
-    app.debug = True
-    app.host = '0.0.0.0'
-    server = WSGIServer(("", 5000), app)
-    server.serve_forever()
+    if DEBUG:
+        app.debug = True
+        app.host = '0.0.0.0'
+        server = WSGIServer(("", 5000), app)
+        server.serve_forever()
+    else:
+        app.debug = False
+        app.host = '127.0.0.1'
+        server = WSGIServer(("", 8081), app)
+        server.serve_forever()
+

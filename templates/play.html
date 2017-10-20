@@ -3,13 +3,13 @@
     <body>
 
         <h1>SSN Audio board</h1>
+        <div id="result"></div>
 
         <script>
          if(typeof(EventSource) !== "undefined") {
              var source = new EventSource("/gen/");
              source.onmessage = function(event) {
-                 var e = document.getElementById("result")
-                 e.innerHTML = event.data + "<br>" + e.innerHTML;
+                 document.getElementById("result").innerHTML += event.data + "<br>";
                  if (event.data != "kp") {
                      var audio = new Audio(event.data);
                      audio.play();
@@ -21,20 +21,8 @@
          } else {
              document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
          }
-
-         function call(id) {
-             var xhr = new XMLHttpRequest();
-             xhr.open("GET", "/set/" + id, true);
-             xhr.send(null);
-         }
         </script>
 
-        <div>
-            {% for button in buttons %}
-            <input type="button" value="{{ button['id'] }}"  onclick="call('{{ button['id'] }}')" />
-            {% endfor %}
-        </div>
-        <div id="result"></div>
     </body>
 </html>
 
