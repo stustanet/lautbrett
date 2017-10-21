@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html>
+	<head>
+		<link rel="stylesheet" href="static/css/bootstrap.min.css">
+		<meta name="viewport" content = "width=device-width, initial-scale=1.0">
+		<!-- refresh the page every minute, because the client closes the connection??? -->
+		<meta http-equiv="refresh" content="60">
+	</head>
     <body>
-
-        <h1>SSN Audio board</h1>
-
         <script>
          if(typeof(EventSource) !== "undefined") {
              var source = new EventSource("/gen/");
              source.onmessage = function(event) {
                  var e = document.getElementById("result")
-                 e.innerHTML = event.data + "<br>" + e.innerHTML;
+			 e.innerHTML = "<div class='alert alert-success'>" + event.data + "</div>";
                  if (event.data != "kp") {
                      var audio = new Audio(event.data);
                      audio.play();
@@ -28,13 +31,18 @@
              xhr.send(null);
          }
         </script>
-
-        <div>
-            {% for button in buttons %}
-            <input type="button" value="{{ button['id'] }}"  onclick="call('{{ button['id'] }}')" />
-            {% endfor %}
-        </div>
-        <div id="result"></div>
+	<div class="container-fluid">
+		
+		{% for button in buttons %}
+		<button type="button" class="btn btn-outline-light border " onclick="call('{{ button }}')"> {{ button }} </button>
+		{% endfor %}
+        	<div id="result"></div>
+	</div>
     </body>
 </html>
 
+<style>
+	body{background-color: #2d2d2d}
+	.border { margin-bottom: 3px;}
+	#result { margin-top: 3px }
+</style>
