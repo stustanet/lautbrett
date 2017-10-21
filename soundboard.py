@@ -8,8 +8,8 @@ from gevent.wsgi import WSGIServer
 import time
 
 app = Flask(__name__)
-PATH = "static"
-DEBUG = True
+PATH = "static/audio"
+DEBUG = False
 min_delay_s = 0.25;
 
 
@@ -28,16 +28,13 @@ def set(sound_id):
     global min_delay_s
     now = time.time()
 
-    print(now)
-    print(now-last_call)
-    print(min_delay_s)
     if (now - last_call) < min_delay_s:
-        print('ratelimited')
         return 'keep cool', 200
     last_call = now
 
     def notify():
         global subscriptions
+        print(len(subscriptions))
         for sub in subscriptions[:]:
             sub.put(sound_id)
     gevent.spawn(notify)
@@ -64,7 +61,11 @@ def wait_for_events():
                 yield 'data: {}\n\n'.format(os.path.join(PATH, find_file(sound_id)))
         except GeneratorExit:
             subscriptions.remove(q)
-    return Response(gen(), mimetype="text/event-stream")
+    r = Response(gen(), mimetype="text/event-stream")
+    r.headers['X-Accel-Buffering'] = 'no'
+    r.headers['Cache-Control'] = 'no-cache'
+    r.headers['Content-Type'] = 'text/event-stream'
+    return r
 
 
 @app.route('/audio/<path:path>')
@@ -88,7 +89,7 @@ def find_file(sound_id):
         if f.startswith("{} ".format(sound_id)):
             return f
 
-    return abort(404)
+    return 'fuck off', 404
 
 @app.route('/soundboard')
 def sound ():
@@ -96,8 +97,8 @@ def sound ():
     for f in os.listdir(PATH):
         f = f.strip("\"\'")
         f = f.split(' ', 1)
-        files.append({'name':f[1], 'id':f[0]})
-    return render_template('soundboard.html', buttons=files)
+        files.append(f[0])
+    return render_template('soundboard.html', buttons=sorted(files))
 
 
 @app.route('/')
