@@ -3,7 +3,7 @@
 from flask import Flask, render_template, abort, Response, send_from_directory
 import os
 import gevent
-from gevent.queue import Queue
+from gevent.queue import Queue, Empty
 from gevent.wsgi import WSGIServer
 import time
 
@@ -34,7 +34,6 @@ def set(sound_id):
 
     def notify():
         global subscriptions
-        print(len(subscriptions))
         for sub in subscriptions[:]:
             sub.put(sound_id)
     gevent.spawn(notify)
@@ -57,17 +56,20 @@ def wait_for_events():
 
         try:
             while True:
-                sound_id = q.get(timeout=120) # Wait for a max. of 120 seconds to clear up the connection
-                yield 'data: {}\n\n'.format(os.path.join(PATH, find_file(sound_id)))
-        except (GeneratorExit, Queue.Empty):
-            q.task_done();
+                sound_id = q.get(timeout=120) # Wait for a max. of 120 seconds to clear up the connectioni
+                if sound_id == "kp":
+                    yield 'data: {"fname":"kp","connected":"%d"}\n\n'%(len(subscriptions))
+                else:
+                    yield 'data: {"fname":"%s","connected":"%d"}\n\n'%(
+                        os.path.join(PATH, find_file(sound_id)),
+                        len(subscriptions))
+        except (GeneratorExit, Empty):
             subscriptions.remove(q)
     r = Response(gen(), mimetype="text/event-stream")
     r.headers['X-Accel-Buffering'] = 'no'
     r.headers['Cache-Control'] = 'no-cache'
     r.headers['Content-Type'] = 'text/event-stream'
     return r
-
 
 @app.route('/audio/<path:path>')
 def send_audio(path):
@@ -99,7 +101,15 @@ def sound ():
         f = f.strip("\"\'")
         f = f.split(' ', 1)
         files.append(f[0])
-    return render_template('soundboard.html', buttons=sorted(files, key=int))
+
+    # Notify all connected users about the newly arrived annoyand
+    def notify():
+        global subscriptions
+        for sub in subscriptions[:]:
+            sub.put("kp")
+    gevent.spawn(notify)
+
+    return render_template('soundboard.html', buttons=sorted(files, key=int), connected=len(subscriptions))
 
 
 @app.route('/')
