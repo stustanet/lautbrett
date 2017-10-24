@@ -57,9 +57,10 @@ def wait_for_events():
 
         try:
             while True:
-                sound_id = q.get()
+                sound_id = q.get(timeout=120) # Wait for a max. of 120 seconds to clear up the connection
                 yield 'data: {}\n\n'.format(os.path.join(PATH, find_file(sound_id)))
-        except GeneratorExit:
+        except (GeneratorExit, Queue.Empty):
+            q.task_done();
             subscriptions.remove(q)
     r = Response(gen(), mimetype="text/event-stream")
     r.headers['X-Accel-Buffering'] = 'no'
@@ -98,7 +99,7 @@ def sound ():
         f = f.strip("\"\'")
         f = f.split(' ', 1)
         files.append(f[0])
-    return render_template('soundboard.html', buttons=sorted(files))
+    return render_template('soundboard.html', buttons=sorted(files, key=int))
 
 
 @app.route('/')
