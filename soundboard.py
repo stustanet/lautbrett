@@ -37,7 +37,7 @@ def set(sound_id):
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
-            sub.put(find_file(sound_id))
+            sub.put(os.path.join(PATH, find_file(sound_id)))
     gevent.spawn(notify)
 
     return 'thx', 200
