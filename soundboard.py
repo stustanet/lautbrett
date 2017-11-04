@@ -1,11 +1,12 @@
 #!venv/bin/python3
 
-from flask import Flask, render_template, abort, Response, send_from_directory
+from flask import Flask, render_template, abort, Response, send_from_directory, request
 import os
 import gevent
 from gevent.queue import Queue
 from gevent.wsgi import WSGIServer
 import time
+import subprocess
 
 app = Flask(__name__)
 PATH = "static"
@@ -28,18 +29,14 @@ def set(sound_id):
     global min_delay_s
     now = time.time()
 
-    print(now)
-    print(now-last_call)
-    print(min_delay_s)
     if (now - last_call) < min_delay_s:
-        print('ratelimited')
-        return 'keep cool', 200
+        return 'fu', 200
     last_call = now
 
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
-            sub.put(sound_id)
+            sub.put(find_file(sound_id))
     gevent.spawn(notify)
 
     return 'thx', 200
@@ -60,8 +57,8 @@ def wait_for_events():
 
         try:
             while True:
-                sound_id = q.get()
-                yield 'data: {}\n\n'.format(os.path.join(PATH, find_file(sound_id)))
+                sound = q.get()
+                yield 'data: {}\n\n'.format(sound)
         except GeneratorExit:
             subscriptions.remove(q)
     return Response(gen(), mimetype="text/event-stream")
@@ -84,8 +81,42 @@ def find_file(sound_id):
         f = f.strip("\"\'")
         if f.startswith("{} ".format(sound_id)):
             return f
-
     return abort(404)
+
+
+@app.route('/speak',methods=['POST', 'GET'])
+def send_espeak_file():
+    # Trigger espeak to speak
+    if request.method == 'POST':
+        phrase = request.form['phrase']
+        voice = request.form['voice'] if 'voice' in request.form else 'de'
+    elif request.method == 'GET':
+        phrase = request.args.get('phrase', '')
+        voice = 'de'
+
+    say_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 
+            "static", "audio", "say.mp3")
+    tmp_file = '/tmp/speak.wav'
+
+    if os.path.exists(tmp_file):
+        os.unlink(tmp_file)
+    # -w: wav file
+    # -v: voice file
+    subprocess.run(['/usr/bin/espeak', '-w', tmp_file, '-v', voice,
+        phrase])
+
+    # -y: always override
+    # -i: input file
+    subprocess.run(['/usr/bin/ffmpeg', '-y', '-i', tmp_file, '-codec:a', 'libmp3lame', say_file])
+    os.unlink('/tmp/speak.wav')
+
+    def notify():
+        global subscriptions
+        for sub in subscriptions[:]:
+            sub.put(say_file)
+    gevent.spawn(notify)
+
+    return 'thx', 200
 
 @app.route('/soundboard')
 def sound ():
@@ -102,7 +133,6 @@ def hello():
     """
     serve the default page, which is loaded by the widget
     """
-
     return render_template('play.html')
 
 
