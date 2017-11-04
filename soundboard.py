@@ -79,6 +79,7 @@ def send_audio(path):
     return send_from_directory(PATH, path)
 
 
+
 def find_file(sound_id):
     """
     find the file in PATH based on the id
@@ -95,16 +96,18 @@ def find_file(sound_id):
 
 @app.route('/speak',methods=['POST', 'GET'])
 def send_espeak_file():
+    """
+    Convert text to speak and store it in /tmp/say.mp3
+    """
     # Trigger espeak to speak
     if request.method == 'POST':
         phrase = request.form['phrase']
         voice = request.form['voice'] if 'voice' in request.form else 'de'
     elif request.method == 'GET':
         phrase = request.args.get('phrase', '')
-        voice = 'de'
+        voice = request.args.get('voice', 'de')
 
-    say_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 
-            "static", "audio", "say.mp3")
+    say_file = '/tmp/say.mp3'
     tmp_file = '/tmp/speak.wav'
 
     if os.path.exists(tmp_file):
@@ -116,24 +119,39 @@ def send_espeak_file():
 
     # -y: always override
     # -i: input file
-    subprocess.run(['/usr/bin/ffmpeg', '-y', '-i', tmp_file, '-codec:a', 'libmp3lame', say_file])
-    os.unlink('/tmp/speak.wav')
-
+    subprocess.run(['/usr/bin/ffmpeg', '-y', '-i', tmp_file, '-codec:a', 'libmp3lame', say_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#    os.unlink('/tmp/speak.wav')
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
-            sub.put(say_file)
+            sub.put("/tmpaudio")
     gevent.spawn(notify)
 
     return 'thx', 200
 
+
+@app.route('/tmpaudio')
+def tmpaudiohandler():
+    """
+    Send only the espeak file
+    """
+    return send_from_directory("/tmp", "say.mp3")
+
+
 @app.route('/soundboard')
 def sound ():
+    """
+    display the soundboard
+    """
     files = []
     for f in os.listdir(PATH):
         f = f.strip("\"\'")
         f = f.split(' ', 1)
-        files.append(f[0])
+        try:
+            int(f[0]) # Skip over all invalid files
+            files.append(f[0])
+        except ValueError:
+            pass
 
     # Notify all connected users about the newly arrived annoyand
     def notify():
