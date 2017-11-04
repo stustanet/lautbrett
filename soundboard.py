@@ -1,12 +1,13 @@
 #!venv/bin/python3
 
-from flask import Flask, render_template, abort, Response, send_from_directory, request
+from flask import Flask, render_template, abort, Response, send_from_directory, request, after_this_request
 import os
 import gevent
 from gevent.queue import Queue, Empty
 from gevent.wsgi import WSGIServer
 import time
 import subprocess
+import random
 
 app = Flask(__name__)
 PATH = "static/audio"
@@ -124,18 +125,23 @@ def send_espeak_file():
     def notify():
         global subscriptions
         for sub in subscriptions[:]:
-            sub.put("/tmpaudio")
+            sub.put("/tmpaudio/{}".format(int(random.random() * 100000)))
     gevent.spawn(notify)
 
     return 'thx', 200
 
 
-@app.route('/tmpaudio')
-def tmpaudiohandler():
+@app.route('/tmpaudio/<rand>')
+def tmpaudiohandler(rand):
     """
     Send only the espeak file
     """
-    return send_from_directory("/tmp", "say.mp3")
+    @after_this_request
+    def add_header(response):
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        return response
+    return send_from_directory("/tmp", "say.mp3", cache_timeout=1)
 
 
 @app.route('/soundboard')
