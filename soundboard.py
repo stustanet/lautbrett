@@ -3,14 +3,14 @@
 from flask import Flask, render_template, abort, Response, send_from_directory, request
 import os
 import gevent
-from gevent.queue import Queue
+from gevent.queue import Queue, Empty
 from gevent.wsgi import WSGIServer
 import time
 import subprocess
 
 app = Flask(__name__)
-PATH = "static"
-DEBUG = True
+PATH = "static/audio"
+DEBUG = False
 min_delay_s = 0.25;
 
 
@@ -30,7 +30,7 @@ def set(sound_id):
     now = time.time()
 
     if (now - last_call) < min_delay_s:
-        return 'fu', 200
+        return 'keep cool', 200
     last_call = now
 
     def notify():
@@ -57,19 +57,25 @@ def wait_for_events():
 
         try:
             while True:
-                sound = q.get()
-                yield 'data: {}\n\n'.format(sound)
-        except GeneratorExit:
+                sound = q.get(timeout=120) # Wait for a max. of 120 seconds to clear up the connectioni
+                if sound == "kp":
+                    yield 'data: {"fname":"kp","connected":"%d"}\n\n'%(len(subscriptions))
+                else:
+                    yield 'data: {"fname":"%s","connected":"%d"}\n\n'%(
+                        sound, len(subscriptions))
+        except (GeneratorExit, Empty):
             subscriptions.remove(q)
-    return Response(gen(), mimetype="text/event-stream")
-
+    r = Response(gen(), mimetype="text/event-stream")
+    r.headers['X-Accel-Buffering'] = 'no'
+    r.headers['Cache-Control'] = 'no-cache'
+    r.headers['Content-Type'] = 'text/event-stream'
+    return r
 
 @app.route('/audio/<path:path>')
 def send_audio(path):
     """
     static file handler to serve the audio data
     """
-    print(path)
     return send_from_directory(PATH, path)
 
 
@@ -77,12 +83,15 @@ def find_file(sound_id):
     """
     find the file in PATH based on the id
     """
+
+    if len(sound_id) == 1:
+        sound_id = "0{}".format(sound_id)
+
     for f in os.listdir(PATH):
         f = f.strip("\"\'")
         if f.startswith("{} ".format(sound_id)):
             return f
     return abort(404)
-
 
 @app.route('/speak',methods=['POST', 'GET'])
 def send_espeak_file():
@@ -124,8 +133,16 @@ def sound ():
     for f in os.listdir(PATH):
         f = f.strip("\"\'")
         f = f.split(' ', 1)
-        files.append({'name':f[1], 'id':f[0]})
-    return render_template('soundboard.html', buttons=files)
+        files.append(f[0])
+
+    # Notify all connected users about the newly arrived annoyand
+    def notify():
+        global subscriptions
+        for sub in subscriptions[:]:
+            sub.put("kp")
+    gevent.spawn(notify)
+
+    return render_template('soundboard.html', buttons=sorted(files, key=int), connected=len(subscriptions))
 
 
 @app.route('/')

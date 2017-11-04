@@ -1,40 +1,58 @@
 <!DOCTYPE html>
 <html>
+	<head>
+		<link rel="stylesheet" href="static/css/bootstrap.min.css">
+		<meta name="viewport" content = "width=device-width, initial-scale=1.0">
+		<!-- refresh the page every minute, because the client closes the connection??? -->
+	</head>
     <body>
+		<script>
+        var reloader = setTimeout(function() {
+            location.reload();
+        }, 60000);
+        if(typeof(EventSource) !== "undefined") {
+            var source = new EventSource("/gen/");
+            source.onmessage = function(event) {
+                var e = document.getElementById("result");
+                var d = JSON.parse(event.data);
+                if (d['fname'] != "kp") {
+                    e.innerHTML = "<div class='alert alert-success'>" + d['fname'] + "</div>";
+                    var audio = new Audio(d['fname']);
+                    audio.play();
+                }
+                if (d['connected'] != 'undefined') {
+                    document.getElementById("annoyed").innerHTML = d['connected']
+                }
+                reloader = setTimeout(function() {
+                    source.close();
+                    location.reload();
+                }, 60000);
+           };
+           source.onerror = function(e) {
+               console.log(e);
+            };
+        } else {
+            document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+        }
 
-        <h1>SSN Audio board</h1>
-
-        <script>
-         if(typeof(EventSource) !== "undefined") {
-             var source = new EventSource("/gen/");
-             source.onmessage = function(event) {
-                 var e = document.getElementById("result")
-                 e.innerHTML = event.data + "<br>" + e.innerHTML;
-                 if (event.data != "kp") {
-                     var audio = new Audio(event.data);
-                     audio.play();
-                 };
-             };
-             source.onerror = function(e) {
-                 console.log(e);
-             };
-         } else {
-             document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
-         }
-
-         function call(id) {
-             var xhr = new XMLHttpRequest();
-             xhr.open("GET", "/set/" + id, true);
-             xhr.send(null);
-         }
+        function call(id) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/set/" + id, true);
+            xhr.send(null);
+        }
         </script>
-
-        <div>
-            {% for button in buttons %}
-            <input type="button" value="{{ button['id'] }}"  onclick="call('{{ button['id'] }}')" />
-            {% endfor %}
-        </div>
-        <div id="result"></div>
+	<div class="container-fluid">
+		{% for button in buttons %}
+		<button type="button" class="btn btn-outline-light border " onclick="call('{{ button }}')"> {{ button }} </button>
+		{% endfor %}
+			<div id="result"></div>
+	</div>
+	<div>Users: <span id='annoyed'>{{connected}}</span></div>
     </body>
 </html>
 
+<style>
+	body{background-color: #2d2d2d}
+	.border { margin-bottom: 3px;}
+	#result { margin-top: 3px }
+</style>
